@@ -2986,25 +2986,25 @@ ${i}  ${call2};
 void VulkanHppGenerator::writeFunctionBodyEnhancedVectorOfUniqueHandles(std::ostream & os, std::string const& indentation, std::string const& commandName, std::pair<std::string, CommandData> const& commandData, size_t returnParamIndex, size_t templateParamIndex, std::map<size_t, size_t> const& vectorParamIndices, bool twoStep, bool singular, bool withAllocator) const
 {
   std::string const stringTemplate =
-    R"(${i}  static_assert( sizeof( ${type} ) <= sizeof( UniqueHandle<${type}, Dispatch> ), "${type} is greater than UniqueHandle<${type}, Dispatch>!" );
-${i}  std::vector<UniqueHandle<${type}, Dispatch>, Allocator> ${typeVariable}s${allocator};
-${i}  ${typeVariable}s.reserve( ${vectorSize} );
-${i}  ${type}* buffer = reinterpret_cast<${type}*>( reinterpret_cast<char*>( ${typeVariable}s.data() ) + ${vectorSize} * ( sizeof( UniqueHandle<${type}, Dispatch> ) - sizeof( ${type} ) ) );
-${i}  Result result = static_cast<Result>(d.vk${command}( m_device, ${arguments}, reinterpret_cast<Vk${type}*>( buffer ) ) );
+    R"(${i}  std::vector<UniqueHandle<${type}, Dispatch>, Allocator> ${uniqueTypeVariable}s${allocator};
+${i}  std::vector<${type}> ${typeVariable}s( ${vectorSize} );
+${i}  Result result = static_cast<Result>( d.vk${command}( m_device, ${arguments}, reinterpret_cast<Vk${type}*>(${typeVariable}s.data()) ) );
 ${i}  if (result == vk::Result::eSuccess)
 ${i}  {
+${i}    ${uniqueTypeVariable}s.reserve( ${vectorSize} );
 ${i}    ${Deleter}<${DeleterTemplate},Dispatch> deleter( *this, ${deleterArg}, d );
 ${i}    for ( size_t i=0 ; i<${vectorSize} ; i++ )
 ${i}    {
-${i}      ${typeVariable}s.push_back( UniqueHandle<${type}, Dispatch>( buffer[i], deleter ) );
+${i}      ${uniqueTypeVariable}s.push_back( UniqueHandle<${type}, Dispatch>( ${typeVariable}s[i], deleter ) );
 ${i}    }
 ${i}  }
 
-${i}  return createResultValue( result, ${typeVariable}s, VULKAN_HPP_NAMESPACE_STRING "::${class}::${commandName}Unique" );
+${i}  return createResultValue( result, ${uniqueTypeVariable}s, VULKAN_HPP_NAMESPACE_STRING "::${class}::${commandName}Unique" );
 )";
 
   std::string type = (returnParamIndex != INVALID_INDEX) ? commandData.second.params[returnParamIndex].type.type : "";
   std::string typeVariable = startLowerCase(stripPrefix(type, "Vk"));
+  std::string uniqueTypeVariable = "unique" + stripPrefix(type, "Vk");
   std::ostringstream arguments;
   writeArguments(arguments, commandData.second, returnParamIndex, templateParamIndex, vectorParamIndices, twoStep, true, singular, 1, commandData.second.params.size() - 1);
 
@@ -3020,6 +3020,7 @@ ${i}  return createResultValue( result, ${typeVariable}s, VULKAN_HPP_NAMESPACE_S
     { "i", indentation },
     { "type", stripPrefix(type, "Vk") },
     { "typeVariable", typeVariable },
+    {"uniqueTypeVariable", uniqueTypeVariable},
     { "allocator", withAllocator ? "( vectorAllocator )" : "" },
     { "vectorSize", isCreateFunction ? "createInfos.size()" : "allocateInfo." + typeVariable + "Count" },
     { "command", stripPrefix(commandData.first, "vk") },
